@@ -1,0 +1,15 @@
+node_modules/
+.svelte-kit/
+build/
+dist/
+
+# Environment — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
