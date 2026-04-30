@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { nanoid } from 'nanoid';
 
 const TOKEN_EXPIRY_DAYS = Number(process.env['TOKEN_EXPIRY_DAYS'] ?? 30);
@@ -8,11 +9,19 @@ const TOKEN_EXPIRY_DAYS = Number(process.env['TOKEN_EXPIRY_DAYS'] ?? 30);
 const projectId = process.env['FIREBASE_PROJECT_ID'];
 const clientEmail = process.env['FIREBASE_CLIENT_EMAIL'];
 const rawKey = process.env['FIREBASE_PRIVATE_KEY'];
+const seedAdminUidRaw = process.env['SEED_ADMIN_UID'];
 
 if (!projectId || !clientEmail || !rawKey) {
   console.error('Missing required Firebase env vars. Copy .env.example to .env and fill in values.');
   process.exit(1);
 }
+
+if (!seedAdminUidRaw) {
+  console.error('SEED_ADMIN_UID is required. Set it in .env to an existing Firebase Auth UID for the admin empresa account.');
+  process.exit(1);
+}
+
+const SEED_ADMIN_UID: string = seedAdminUidRaw;
 
 const privateKey = rawKey.replace(/\\n/g, '\n');
 
@@ -22,6 +31,7 @@ const app =
     : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
 
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const ROLES = ['executive', 'middleManagement', 'operational'] as const;
 type Role = (typeof ROLES)[number];
@@ -95,7 +105,7 @@ async function main(): Promise<void> {
     t.set(companyRef, {
       name: 'Empresa Demo S.A.S.',
       partnerUid: 'seed-partner-uid',
-      companyAdminUid: 'seed-company-admin-uid',
+      companyAdminUid: SEED_ADMIN_UID,
       createdAt: now,
       createdBy: 'seed-dev',
     });
@@ -149,7 +159,19 @@ async function main(): Promise<void> {
     });
   });
 
-  console.log('\nSeed complete. Token URLs:');
+  // Set custom claims so the admin's next ID token carries role + companyIds.
+  // The user must sign out and back in (or wait for token refresh) for the
+  // new claim to appear in their session cookie.
+  await auth.setCustomUserClaims(SEED_ADMIN_UID, {
+    role: 'adminEmpresa',
+    companyIds: [companyId],
+  });
+
+  console.log('\nSeed complete.');
+  console.log(`  Company ID : ${companyId}`);
+  console.log(`  Admin UID  : ${SEED_ADMIN_UID}`);
+  console.log('  Custom claims set — sign out and back in to refresh the session.\n');
+  console.log('Token URLs:');
   for (let i = 0; i < employees.length; i++) {
     console.log(`  [${employees[i].role}] http://localhost:5173/test/${tokenValues[i]}`);
   }
