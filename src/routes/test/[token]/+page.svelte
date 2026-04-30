@@ -123,7 +123,7 @@
   function advanceFromCheckpoint(): void {
     if (pendingCheckpointId === null) return;
     pendingCheckpointId = null;
-    setTimeout(() => revealQuestion(currentIndex), 300);
+    setTimeout(() => revealQuestion(currentIndex), 30);
   }
 
   function revealQuestion(index: number): void {
@@ -134,7 +134,7 @@
     setTimeout(() => {
       typingVisible = false;
       pushMessage('amelia', question.text);
-    }, 800);
+    }, 30);
   }
 
   function finishAssessment(finalAnswers: readonly Answer[]): void {
@@ -145,7 +145,7 @@
       submitting = true;
       answersJson = JSON.stringify(finalAnswers);
       setTimeout(() => submitFormEl?.requestSubmit(), 50);
-    }, 800);
+    }, 30);
   }
 
   function saveProgressInBackground(completedPillar: 1 | 2 | 3 | 4 | 5 | 6, pillarAnswers: readonly Answer[]): void {
@@ -179,12 +179,12 @@
       // If crossing into a new pillar, show checkpoint first.
       const justAnswered = questions[currentIndex - 1];
       if (justAnswered && nextQuestion.pillar !== justAnswered.pillar) {
-        setTimeout(() => pushCheckpoint(nextQuestion.pillar as 1 | 2 | 3 | 4 | 5 | 6), 300);
+        setTimeout(() => pushCheckpoint(nextQuestion.pillar as 1 | 2 | 3 | 4 | 5 | 6), 30);
       } else {
-        setTimeout(() => revealQuestion(currentIndex), 300);
+        setTimeout(() => revealQuestion(currentIndex), 30);
       }
     } else {
-      setTimeout(() => finishAssessment(updatedAnswers), 300);
+      setTimeout(() => finishAssessment(updatedAnswers), 30);
     }
   }
 
