@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { error } from '@sveltejs/kit';
 import type { Role, Answer } from '$lib/types';
@@ -64,7 +64,12 @@ export async function submitAssessment(
 
     markTokenCompleted(t, tokenRef, now);
 
-    t.update(employeeRef, { latestAssessmentId: assessmentId });
+    t.update(employeeRef, {
+      latestAssessmentId: assessmentId,
+      latestIsme: isme,
+      latestCompletedAt: now,
+      activeToken: FieldValue.delete(),
+    });
 
     t.update(companyRef, {
       stats: {
