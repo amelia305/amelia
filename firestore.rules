@@ -1,9 +1,75 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Phase 0 stub — all access denied. Real rules in Phase 1.
-    match /{document=**} {
-      allow read, write: if false;
+
+    // ─── Partners ────────────────────────────────────────────────────────────
+    match /partners/{partnerUid} {
+      allow read: if request.auth.token.role == 'superadmin'
+                  || request.auth.uid == partnerUid;
+      allow write: if request.auth.token.role == 'superadmin';
+    }
+
+    // ─── Companies ───────────────────────────────────────────────────────────
+    match /companies/{companyId} {
+      allow read: if request.auth.token.role == 'superadmin'
+                  || request.auth.uid == resource.data.partnerUid
+                  || request.auth.uid == resource.data.companyAdminUid;
+      allow write: if request.auth.token.role == 'superadmin';
+    }
+
+    // ─── Employees ───────────────────────────────────────────────────────────
+    // Admin Empresa may create employees whose companyId matches their company.
+    // Admin Empresa may update (including soft-archive) their own employees.
+    // Read is also limited to the company's admin.
+    match /companies/{companyId}/employees/{employeeId} {
+      allow read: if request.auth.uid ==
+        get(/databases/$(database)/documents/companies/$(companyId)).data.companyAdminUid;
+
+      allow create: if request.auth.uid ==
+          get(/databases/$(database)/documents/companies/$(companyId)).data.companyAdminUid
+        && request.resource.data.companyId == companyId;
+
+      allow update: if request.auth.uid ==
+        get(/databases/$(database)/documents/companies/$(companyId)).data.companyAdminUid;
+    }
+
+    // ─── Assessments ─────────────────────────────────────────────────────────
+    match /companies/{companyId}/assessments/{assessmentId} {
+      allow read: if request.auth.uid ==
+              get(/databases/$(database)/documents/companies/$(companyId)).data.companyAdminUid
+          || request.auth.uid ==
+              get(/databases/$(database)/documents/companies/$(companyId)).data.partnerUid
+          || request.auth.token.role == 'superadmin';
+      // Writes come exclusively from the server via Admin SDK (bypasses rules).
+      allow write: if false;
+    }
+
+    // ─── Audit ───────────────────────────────────────────────────────────────
+    match /companies/{companyId}/audit/{auditId} {
+      allow read: if request.auth.token.role == 'superadmin';
+      allow write: if false;
+    }
+
+    // ─── Tokens ──────────────────────────────────────────────────────────────
+    // Tokens are root-level and server-side only by default.
+    // Admin Empresa may create tokens for their own company.
+    // Admin Empresa may update a token ONLY to set status = 'expired',
+    // and ONLY when no other fields are changed (affectedKeys guard prevents
+    // collateral mutation of companyId, employeeId, role, expiresAt, etc.).
+    match /tokens/{tokenValue} {
+      allow read: if request.auth.uid ==
+        get(/databases/$(database)/documents/companies/$(resource.data.companyId)).data.companyAdminUid;
+
+      allow create: if request.auth.uid ==
+          get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.companyAdminUid
+        && request.resource.data.companyId is string
+        && request.resource.data.employeeId is string
+        && request.resource.data.status == 'pending';
+
+      allow update: if request.auth.uid ==
+              get(/databases/$(database)/documents/companies/$(resource.data.companyId)).data.companyAdminUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'expired';
     }
   }
 }

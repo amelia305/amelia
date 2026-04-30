@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'superadmin' | 'partner' | 'companyAdmin';
+export type UserRole = 'superadmin' | 'socio' | 'adminEmpresa';
 
 /** The three employee roles that map 1:1 to questionnaire profiles. */
 export const ROLES = ['executive', 'middleManagement', 'operational'] as const;
@@ -80,9 +80,9 @@ export interface Token {
   readonly employeeId: string;
   readonly role: Role;
   readonly status: TokenStatus;
-  readonly createdAt: FirebaseFirestore.Timestamp;
-  readonly expiresAt: FirebaseFirestore.Timestamp;
-  readonly consumedAt?: FirebaseFirestore.Timestamp;
+  readonly createdAt: Date;
+  readonly expiresAt: Date;
+  readonly consumedAt?: Date;
   readonly partialAnswers?: ReadonlyArray<Answer>;
 }
 
@@ -106,7 +106,7 @@ export interface Assessment {
   readonly answers: ReadonlyArray<Answer>;
   readonly scoresByPillar: Readonly<Record<`p${1 | 2 | 3 | 4 | 5 | 6}`, number>>;
   readonly isme: number;
-  readonly completedAt: FirebaseFirestore.Timestamp;
+  readonly completedAt: Date;
   readonly instrumentVersion: number;
 }
 
@@ -125,7 +125,7 @@ export const AssessmentSchema = z.object({
   answers: z.array(AnswerSchema),
   scoresByPillar: ScoresByPillarSchema,
   isme: z.number(),
-  completedAt: z.unknown(),
+  completedAt: z.any().transform((val) => val.toDate() as Date),
   instrumentVersion: z.number().int().positive(),
 });
 
@@ -140,7 +140,7 @@ export interface CompanyStats {
   readonly weightedIsme: number;
   /** Must use Record<Role, ...> — NOT Record<string, ...> (Amendment 3). */
   readonly byRole: Readonly<Record<Role, RoleStats>>;
-  readonly updatedAt: FirebaseFirestore.Timestamp;
+  readonly updatedAt: Date;
 }
 
 export const RoleStatsSchema = z.object({
@@ -170,7 +170,9 @@ export interface Employee {
   readonly tenureMonths: number;
   readonly activeToken?: string;
   readonly latestAssessmentId?: string;
-  readonly createdAt: FirebaseFirestore.Timestamp;
+  readonly latestIsme?: number | null;
+  readonly latestCompletedAt?: Date | null;
+  readonly createdAt: Date;
   readonly createdBy: string;
 }
 
@@ -184,6 +186,8 @@ export const EmployeeSchema = z.object({
   tenureMonths: z.number().int().nonnegative(),
   activeToken: z.string().optional(),
   latestAssessmentId: z.string().optional(),
+  latestIsme: z.number().nullable().optional(),
+  latestCompletedAt: z.unknown().optional(), // Timestamp at Firestore boundary; caller casts to Date | null
   createdAt: z.unknown(),
   createdBy: z.string(),
 });
@@ -194,7 +198,7 @@ export interface Company {
   readonly name: string;
   readonly partnerUid: string;
   readonly companyAdminUid: string;
-  readonly createdAt: FirebaseFirestore.Timestamp;
+  readonly createdAt: Date;
   readonly createdBy: string;
   readonly stats?: CompanyStats;
 }
@@ -213,7 +217,7 @@ export const CompanySchema = z.object({
 export interface Partner {
   readonly name: string;
   readonly email: string;
-  readonly createdAt: FirebaseFirestore.Timestamp;
+  readonly createdAt: Date;
   readonly createdBy: string;
 }
 
@@ -222,4 +226,28 @@ export const PartnerSchema = z.object({
   email: z.string().email(),
   createdAt: z.unknown(),
   createdBy: z.string(),
+});
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+export type AuditAction =
+  | 'company.seeded'
+  | 'employee.created'
+  | 'employee.archived'
+  | 'token.created'
+  | 'token.revoked'
+  | 'assessment.submitted';
+
+export interface AuditEntry {
+  readonly action: AuditAction;
+  readonly actorUid: string;
+  readonly timestamp: Date;
+  readonly meta: Readonly<Record<string, unknown>>;
+}
+
+export const AuditSchema = z.object({
+  action: z.string().min(1),
+  actorUid: z.string().min(1),
+  timestamp: z.unknown(),
+  meta: z.record(z.unknown()),
 });
