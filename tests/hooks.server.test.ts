@@ -34,7 +34,6 @@ describe('hooks.server.ts', () => {
 
     expect(event.locals.user).toBeNull();
     expect(resolve).toHaveBeenCalledWith(event);
-    // Firebase Auth must NOT be called — cookie-absent branch is first
     expect(mockVerifyAndReadUser).not.toHaveBeenCalled();
   });
 
@@ -48,14 +47,14 @@ describe('hooks.server.ts', () => {
     expect(mockVerifyAndReadUser).not.toHaveBeenCalled();
   });
 
-  it('populates locals.user when cookie is valid', async () => {
+  it('populates locals.user with unwrapped user when verifyAndReadUser returns ok: true', async () => {
     const user = {
       uid: 'u1',
       email: 'admin@co.com',
       role: 'adminEmpresa' as const,
       companyIds: ['cmp-1'],
     };
-    mockVerifyAndReadUser.mockResolvedValue(user);
+    mockVerifyAndReadUser.mockResolvedValue({ ok: true, user });
     const resolve = vi.fn(async () => new Response('ok'));
     const event = makeEvent('good-cookie');
 
@@ -66,8 +65,8 @@ describe('hooks.server.ts', () => {
     expect(resolve).toHaveBeenCalledWith(event);
   });
 
-  it('sets locals.user to null when verifyAndReadUser returns null (invalid cookie)', async () => {
-    mockVerifyAndReadUser.mockResolvedValue(null);
+  it('sets locals.user to null when verifyAndReadUser returns invalid_session', async () => {
+    mockVerifyAndReadUser.mockResolvedValue({ ok: false, reason: 'invalid_session' });
     const resolve = vi.fn(async () => new Response('ok'));
     const event = makeEvent('bad-cookie');
 
@@ -77,9 +76,19 @@ describe('hooks.server.ts', () => {
     expect(resolve).toHaveBeenCalledWith(event);
   });
 
+  it('sets locals.user to null when verifyAndReadUser returns not_provisioned', async () => {
+    mockVerifyAndReadUser.mockResolvedValue({ ok: false, reason: 'not_provisioned' });
+    const resolve = vi.fn(async () => new Response('ok'));
+    const event = makeEvent('unprovisioned-cookie');
+
+    await handle({ event, resolve });
+
+    expect(event.locals.user).toBeNull();
+    expect(resolve).toHaveBeenCalledWith(event);
+  });
+
   it('skips Firebase Auth when no cookie — public routes pay zero cost', async () => {
     const resolve = vi.fn(async () => new Response('test-page'));
-    // Simulate request to /test/some-token — no session cookie
     const event = makeEvent(undefined);
 
     await handle({ event, resolve });

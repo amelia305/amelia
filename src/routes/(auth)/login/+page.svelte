@@ -23,6 +23,13 @@
       });
 
       if (!res.ok) {
+        if (res.status === 403) {
+          const body = await res.json().catch(() => ({})) as { reason?: string };
+          if (body.reason === 'not_provisioned') {
+            errorMsg = 'Su cuenta no tiene un rol asignado. Contacte al administrador.';
+            return;
+          }
+        }
         errorMsg = 'No se pudo iniciar sesión. Verifique sus credenciales.';
         return;
       }

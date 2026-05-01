@@ -105,6 +105,10 @@ describe('POST /api/session', () => {
 
   it('sets HttpOnly session cookie and returns 200 for a valid idToken', async () => {
     mockCreateSessionCookieFromIdToken.mockResolvedValue('session-cookie-value');
+    mockVerifyAndReadUser.mockResolvedValue({
+      ok: true,
+      user: { uid: 'u1', email: 'a@b.com', role: 'adminEmpresa', companyIds: [] },
+    });
     const request = makeRequest({ idToken: 'valid-id-token' });
     const cookies = makeCookies();
 
@@ -124,6 +128,20 @@ describe('POST /api/session', () => {
       })
     );
   });
+
+  it('returns 403 and deletes cookie when verifyAndReadUser returns not_provisioned', async () => {
+    mockCreateSessionCookieFromIdToken.mockResolvedValue('session-cookie-value');
+    mockVerifyAndReadUser.mockResolvedValue({ ok: false, reason: 'not_provisioned' });
+    const request = makeRequest({ idToken: 'unprovisioned-id-token' });
+    const cookies = makeCookies();
+
+    const response = await POST({ request, cookies } as unknown as Parameters<typeof POST>[0]);
+    const body = await response.json() as { ok: boolean; reason: string };
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({ ok: false, reason: 'not_provisioned' });
+    expect(cookies.delete).toHaveBeenCalledWith('amelia_session', { path: '/' });
+  });
 });
 
 describe('DELETE /api/session', () => {
@@ -133,7 +151,6 @@ describe('DELETE /api/session', () => {
 
   it('returns 204 and deletes the cookie when no cookie is present', async () => {
     const cookies = makeCookies();
-    // No cookie present
     (cookies.get as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
     const response = await DELETE({ cookies } as unknown as Parameters<typeof DELETE>[0]);
@@ -142,10 +159,13 @@ describe('DELETE /api/session', () => {
     expect(cookies.delete).toHaveBeenCalledWith('amelia_session', { path: '/' });
   });
 
-  it('revokes refresh tokens when cookie is present and valid', async () => {
+  it('revokes refresh tokens when cookie is present and verifyAndReadUser returns ok', async () => {
     const cookies = makeCookies();
     (cookies.get as ReturnType<typeof vi.fn>).mockReturnValue('existing-cookie');
-    mockVerifyAndReadUser.mockResolvedValue({ uid: 'user-123', email: 'x@x.com', role: 'adminEmpresa', companyIds: [] });
+    mockVerifyAndReadUser.mockResolvedValue({
+      ok: true,
+      user: { uid: 'user-123', email: 'x@x.com', role: 'adminEmpresa', companyIds: [] },
+    });
     mockClearSession.mockResolvedValue(undefined);
 
     const response = await DELETE({ cookies } as unknown as Parameters<typeof DELETE>[0]);
@@ -155,10 +175,10 @@ describe('DELETE /api/session', () => {
     expect(cookies.delete).toHaveBeenCalledWith('amelia_session', { path: '/' });
   });
 
-  it('still clears cookie even when verifyAndReadUser returns null', async () => {
+  it('still clears cookie when verifyAndReadUser returns invalid_session', async () => {
     const cookies = makeCookies();
     (cookies.get as ReturnType<typeof vi.fn>).mockReturnValue('bad-cookie');
-    mockVerifyAndReadUser.mockResolvedValue(null);
+    mockVerifyAndReadUser.mockResolvedValue({ ok: false, reason: 'invalid_session' });
 
     const response = await DELETE({ cookies } as unknown as Parameters<typeof DELETE>[0]);
 

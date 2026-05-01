@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'superadmin' | 'socio' | 'adminEmpresa';
+export const UserRoleSchema = z.enum(['superadmin', 'socio', 'adminEmpresa']);
+export type UserRole = z.infer<typeof UserRoleSchema>;
 
 /** The three employee roles that map 1:1 to questionnaire profiles. */
 export const ROLES = ['executive', 'middleManagement', 'operational'] as const;

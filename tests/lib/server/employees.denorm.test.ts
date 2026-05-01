@@ -64,7 +64,7 @@ describe('employees denormalization', () => {
         archived: false,
         latestAssessmentId: 'asmt-1',
         latestIsme: 72,
-        latestCompletedAt: mockTimestamp,
+        latestCompletedAt: mockTimestamp.toDate(),
       });
     });
 
@@ -173,7 +173,7 @@ describe('employees denormalization', () => {
 
       expect(result).toHaveLength(2);
       expect(result[0].latestIsme).toBe(75);
-      expect(result[0].latestCompletedAt).toBe(mockTimestamp);
+      expect(result[0].latestCompletedAt).toEqual(mockTimestamp.toDate());
       expect(result[1].latestIsme).toBe(null);
       expect(result[1].latestCompletedAt).toBe(null);
     });
@@ -233,7 +233,7 @@ describe('employees denormalization', () => {
         activeToken: undefined,
         latestAssessmentId: 'asmt-1',
         latestIsme: 68,
-        latestCompletedAt: mockTimestamp,
+        latestCompletedAt: mockTimestamp.toDate(),
         archived: false,
       });
     });

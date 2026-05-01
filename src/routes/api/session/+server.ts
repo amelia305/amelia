@@ -41,6 +41,15 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     maxAge: SESSION_TTL_MS / 1000,
   });
 
+  const result = await verifyAndReadUser(sessionCookie);
+  if (!result.ok) {
+    cookies.delete(SESSION_COOKIE_NAME, { path: '/' });
+    if (result.reason === 'not_provisioned') {
+      return json({ ok: false, reason: 'not_provisioned' }, { status: 403 });
+    }
+    throw error(500, 'Session verification failed');
+  }
+
   return json({ ok: true });
 };
 
@@ -48,10 +57,9 @@ export const DELETE: RequestHandler = async ({ cookies }) => {
   const cookie = cookies.get(SESSION_COOKIE_NAME);
 
   if (cookie) {
-    // Best-effort: read user from cookie to revoke refresh tokens.
-    const user = await verifyAndReadUser(cookie);
-    if (user) {
-      await clearSession(user.uid);
+    const result = await verifyAndReadUser(cookie);
+    if (result.ok) {
+      await clearSession(result.user.uid);
     }
   }
 

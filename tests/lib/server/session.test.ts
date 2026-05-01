@@ -61,7 +61,7 @@ describe('verifyAndReadUser', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a LocalsUser for a valid cookie with all claims', async () => {
+  it('returns { ok: true, user } for a valid cookie with all claims', async () => {
     mockVerifySessionCookie.mockResolvedValue({
       uid: 'user-1',
       email: 'admin@test.com',
@@ -70,12 +70,14 @@ describe('verifyAndReadUser', () => {
     });
     const result = await verifyAndReadUser('valid-cookie');
     expect(result).toEqual({
-      uid: 'user-1',
-      email: 'admin@test.com',
-      role: 'adminEmpresa',
-      companyIds: ['company-a', 'company-b'],
+      ok: true,
+      user: {
+        uid: 'user-1',
+        email: 'admin@test.com',
+        role: 'adminEmpresa',
+        companyIds: ['company-a', 'company-b'],
+      },
     });
-    // Verify checkRevoked=true is passed
     expect(mockVerifySessionCookie).toHaveBeenCalledWith('valid-cookie', true);
   });
 
@@ -84,11 +86,10 @@ describe('verifyAndReadUser', () => {
       uid: 'user-2',
       email: 'admin2@test.com',
       role: 'adminEmpresa',
-      // companyIds absent
     });
     const result = await verifyAndReadUser('cookie-no-ids');
-    expect(result).not.toBeNull();
-    expect(result?.companyIds).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.companyIds).toEqual([]);
   });
 
   it('returns companyIds: [] when companyIds claim is undefined', async () => {
@@ -99,55 +100,58 @@ describe('verifyAndReadUser', () => {
       companyIds: undefined,
     });
     const result = await verifyAndReadUser('cookie-undefined-ids');
-    expect(result).not.toBeNull();
-    expect(result?.companyIds).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.companyIds).toEqual([]);
   });
 
-  it('returns null when role claim is missing', async () => {
+  it('returns { ok: false, reason: not_provisioned } when role claim is missing', async () => {
     mockVerifySessionCookie.mockResolvedValue({
       uid: 'user-4',
       email: 'norole@test.com',
-      // no role
     });
     const result = await verifyAndReadUser('cookie-no-role');
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: 'not_provisioned' });
   });
 
-  it('returns null when role is invalid', async () => {
+  it('returns { ok: false, reason: not_provisioned } when role is invalid', async () => {
     mockVerifySessionCookie.mockResolvedValue({
       uid: 'user-5',
       email: 'bad@test.com',
-      role: 'empleado', // not a valid UserRole
+      role: 'empleado',
     });
     const result = await verifyAndReadUser('cookie-bad-role');
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: 'not_provisioned' });
   });
 
-  it('returns null when verifySessionCookie throws (expired/revoked/malformed)', async () => {
+  it('returns { ok: false, reason: invalid_session } when verifySessionCookie throws', async () => {
     mockVerifySessionCookie.mockRejectedValue(new Error('session cookie expired'));
     const result = await verifyAndReadUser('expired-cookie');
-    expect(result).toBeNull();
+    expect(result).toEqual({ ok: false, reason: 'invalid_session' });
   });
 
-  it('works for socio role', async () => {
+  it('returns { ok: true, user } for socio role', async () => {
     mockVerifySessionCookie.mockResolvedValue({
       uid: 'partner-1',
       email: 'partner@test.com',
       role: 'socio',
     });
     const result = await verifyAndReadUser('partner-cookie');
-    expect(result?.role).toBe('socio');
-    expect(result?.companyIds).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.user.role).toBe('socio');
+      expect(result.user.companyIds).toEqual([]);
+    }
   });
 
-  it('works for superadmin role', async () => {
+  it('returns { ok: true, user } for superadmin role', async () => {
     mockVerifySessionCookie.mockResolvedValue({
       uid: 'sa-1',
       email: 'sa@test.com',
       role: 'superadmin',
     });
     const result = await verifyAndReadUser('sa-cookie');
-    expect(result?.role).toBe('superadmin');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.role).toBe('superadmin');
   });
 });
 

@@ -10,6 +10,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     return resolve(event);
   }
 
-  event.locals.user = await verifyAndReadUser(cookie);
+  const result = await verifyAndReadUser(cookie);
+  event.locals.user = result.ok ? result.user : null;
   return resolve(event);
 };
